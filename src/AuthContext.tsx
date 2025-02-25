@@ -1,6 +1,5 @@
 import React, { createContext, useEffect, useMemo, useRef, useState } from "react";
 import useBrowserStorage from "./Hooks";
-import { useCookieStorage } from "./use-cookie-storage";
 import { createInternalConfig } from "./authConfig";
 import {
     fetchTokens,
@@ -39,96 +38,51 @@ export const AuthContext = createContext<IAuthContext>({
 export const AuthProvider = ({ authConfig, children }: IAuthProvider) => {
     const config: TInternalConfig = useMemo(() => createInternalConfig(authConfig), [authConfig]);
 
-    const [refreshToken, setRefreshToken] =
-        config.storage === "cookie"
-            ? useCookieStorage<string | undefined>(
-                  `refreshToken`,
-                  undefined,
-                  config.storageKeyPrefix,
-                  config.baseDomain
-              )
-            : useBrowserStorage<string | undefined>(
-                  `${config.storageKeyPrefix}refreshToken`,
-                  undefined,
-                  config.storage
-              );
-    const [refreshTokenExpire, setRefreshTokenExpire] =
-        config.storage === "cookie"
-            ? useCookieStorage<number | undefined>(
-                  `refreshTokenExpire`,
-                  undefined,
-                  config.storageKeyPrefix,
-                  config.baseDomain
-              )
-            : useBrowserStorage<number | undefined>(
-                  `${config.storageKeyPrefix}refreshTokenExpire`,
-                  undefined,
-                  config.storage
-              );
-    const [token, setToken] =
-        config.storage === "cookie"
-            ? useCookieStorage<string>(`token`, "", config.storageKeyPrefix, config.baseDomain)
-            : useBrowserStorage<string>(`${config.storageKeyPrefix}token`, "", config.storage);
+    const [refreshToken, setRefreshToken] = useBrowserStorage<string | undefined>(
+        `${config.storageKeyPrefix}refreshToken`,
+        undefined,
+        config.storage,
+        config?.baseDomain || ""
+    );
+    const [refreshTokenExpire, setRefreshTokenExpire] = useBrowserStorage<number | undefined>(
+        `${config.storageKeyPrefix}refreshTokenExpire`,
+        undefined,
+        config.storage
+    );
+    const [token, setToken] = useBrowserStorage<string>(
+        `${config.storageKeyPrefix}token`,
+        "",
+        config.storage
+    );
 
-    const [tokenExpire, setTokenExpire] =
-        config.storage === "cookie"
-            ? useCookieStorage<number>(
-                  `tokenExpire`,
-                  epochAtSecondsFromNow(FALLBACK_EXPIRE_TIME),
-                  config.storageKeyPrefix,
-                  config.baseDomain
-              )
-            : useBrowserStorage<number>(
-                  `${config.storageKeyPrefix}tokenExpire`,
-                  epochAtSecondsFromNow(FALLBACK_EXPIRE_TIME),
-                  config.storage
-              );
+    const [tokenExpire, setTokenExpire] = useBrowserStorage<number>(
+        `${config.storageKeyPrefix}tokenExpire`,
+        epochAtSecondsFromNow(FALLBACK_EXPIRE_TIME),
+        config.storage
+    );
 
-    const [idToken, setIdToken] =
-        config.storage === "cookie"
-            ? useCookieStorage<string | undefined>(
-                  `idToken`,
-                  undefined,
-                  config.storageKeyPrefix,
-                  config.baseDomain
-              )
-            : useBrowserStorage<string | undefined>(
-                  `${config.storageKeyPrefix}idToken`,
-                  undefined,
-                  config.storage
-              );
+    const [idToken, setIdToken] = useBrowserStorage<string | undefined>(
+        `${config.storageKeyPrefix}idToken`,
+        undefined,
+        config.storage
+    );
 
-    const [loginInProgress, setLoginInProgress] =
-        config.storage === "cookie"
-            ? useCookieStorage<boolean>(`loginInProgress`, false, config.storageKeyPrefix, config.baseDomain)
-            : useBrowserStorage<boolean>(`${config.storageKeyPrefix}loginInProgress`, false, config.storage);
+    const [loginInProgress, setLoginInProgress] = useBrowserStorage<boolean>(
+        `${config.storageKeyPrefix}loginInProgress`,
+        false,
+        config.storage
+    );
 
-    const [refreshInProgress, setRefreshInProgress] =
-        config.storage === "cookie"
-            ? useCookieStorage<boolean>(
-                  `refreshInProgress`,
-                  false,
-                  config.storageKeyPrefix,
-                  config.baseDomain
-              )
-            : useBrowserStorage<boolean>(
-                  `${config.storageKeyPrefix}refreshInProgress`,
-                  false,
-                  config.storage
-              );
-    const [loginMethod, setLoginMethod] =
-        config.storage === "cookie"
-            ? useCookieStorage<"redirect" | "popup">(
-                  `loginMethod`,
-                  "redirect",
-                  config.storageKeyPrefix,
-                  config.baseDomain
-              )
-            : useBrowserStorage<"redirect" | "popup">(
-                  `${config.storageKeyPrefix}loginMethod`,
-                  "redirect",
-                  config.storage
-              );
+    const [refreshInProgress, setRefreshInProgress] = useBrowserStorage<boolean>(
+        `${config.storageKeyPrefix}refreshInProgress`,
+        false,
+        config.storage
+    );
+    const [loginMethod, setLoginMethod] = useBrowserStorage<"redirect" | "popup">(
+        `${config.storageKeyPrefix}loginMethod`,
+        "redirect",
+        config.storage
+    );
 
     const tokenData = useMemo(() => {
         if (config.decodeToken) return decodeAccessToken(token);
@@ -192,6 +146,17 @@ export const AuthProvider = ({ authConfig, children }: IAuthProvider) => {
             console.warn(`Failed to decode idToken: ${(e as Error).message}`);
         }
         const tokenExpiresIn = config.tokenExpiresIn ?? response.expires_in ?? tokenExp;
+
+        // loggind for debugging purposes
+        console.log("Debug: tokenExpiresIn", tokenExpiresIn);
+        console.log({
+            "config.tokenExpiresIn": config?.tokenExpiresIn,
+            "response.expires_in": response.expires_in,
+            tokenExp,
+            FALLBACK_EXPIRE_TIME,
+            "decodedToken.exp": decodeJWT(response?.id_token || "")?.exp || undefined,
+        });
+
         setTokenExpire(epochAtSecondsFromNow(tokenExpiresIn));
         const refreshTokenExpiresIn =
             config.refreshTokenExpiresIn ?? getRefreshExpiresIn(tokenExpiresIn, response);
